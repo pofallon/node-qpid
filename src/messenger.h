@@ -19,10 +19,11 @@ class Messenger : public node::ObjectWrap {
   ~Messenger();
 
   static v8::Handle<v8::Value> New(const v8::Arguments& args);
+  static v8::Handle<v8::Value> Send(const v8::Arguments& args);
   static v8::Handle<v8::Value> PlusOne(const v8::Arguments& args);
   // static v8::Handle<v8::Value> Incoming(const v8::Arguments& args);
   double counter_;
-  char * address_;
+  std::string address_;
   pn_messenger_t * messenger_;
 };
 
