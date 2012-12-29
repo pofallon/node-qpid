@@ -18,9 +18,9 @@ m.on('connected', function() {
     m.send('Testing: ' + i + ' - ' + Date.now(), function(err) {
       count++;
       if (err) {
-        console.log("Node: send callback #" + count + " (error: " + err.message + ")");
+        console.log("Node: send callback count #" + count + " (error: " + err.message + ")");
       } else { 
-        console.log("Node: send callback #" + count + " (success)");
+        console.log("Node: send callback count #" + count + " (success)");
         if (count === max) {
           console.log("Done!");
         }

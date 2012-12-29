@@ -7,30 +7,11 @@ using namespace v8;
 using namespace node;
 using namespace std;
 
-Messenger::Messenger() {};
-Messenger::~Messenger() {};
+Messenger::Messenger() { };
 
-enum async_commands_t {CONNECT, SEND};
+Messenger::~Messenger() { };
 
-struct Baton {
-
-  uv_work_t request;
-  Persistent<Object> obj;
-  Persistent<Function> callback;
-
-  int error_code;
-  string error_message;
-
-  async_commands_t command;
-  pn_messenger_t* messenger_;
-  string address_;
-
-  string msgtext;
-  pn_tracker_t tracker;
-  
-};
-
-void AsyncWork(uv_work_t* req) {
+void Messenger::AsyncWork(uv_work_t* req) {
 
   Baton* baton = static_cast<Baton*>(req->data);
   int ret;
@@ -85,7 +66,7 @@ void AsyncWork(uv_work_t* req) {
 
 }
 
-void AsyncAfter(uv_work_t* req) {
+void Messenger::AsyncAfter(uv_work_t* req) {
   HandleScope scope;
   Baton* baton = static_cast<Baton*>(req->data);
 
@@ -157,7 +138,7 @@ Handle<Value> Messenger::New(const Arguments& args) {
     cerr << "Messenger::New: Connecting to " << baton->address_ << "\n";
 
     baton->request.data = baton;
-    uv_queue_work(uv_default_loop(), &baton->request, AsyncWork, AsyncAfter);
+    uv_queue_work(uv_default_loop(), &baton->request, Messenger::AsyncWork, Messenger::AsyncAfter);
   }
   obj->Wrap(args.This());
 
