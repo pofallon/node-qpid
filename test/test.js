@@ -6,22 +6,31 @@ nconf.file(process.env.HOME + '/.cproton/config.json');
 
 var url = 'amqps://' + nconf.get('servicebus:issuer') + ':' + nconf.get('servicebus:key') + '@' + nconf.get('servicebus:namespace') + '.servicebus.windows.net/' + nconf.get('servicebus:entity');
 
-console.log(url);
+// console.log(url);
+
+var max = 2;
+var count = 0;
 
 var m = new Messenger(url);
 m.on('connected', function() {
-  console.log("Connected!");
-  m.send('Testing!', function(err) {
-    if (err) {
-      console.log("Error sending: " + err.message);
-    } else { 
-      console.log("Success?");
-    }
-  });
+  console.log("Node: 'connected' event");
+  for (var i = 0; i <= max-1; i++) {
+    m.send('Testing: ' + i + ' - ' + Date.now(), function(err) {
+      count++;
+      if (err) {
+        console.log("Node: send callback #" + count + " (error: " + err.message + ")");
+      } else { 
+        console.log("Node: send callback #" + count + " (success)");
+        if (count === max) {
+          console.log("Done!");
+        }
+      }
+    });
+  }
 });
 m.on('error', function(err) {
-  console.log('Error: ' + err.message);
+  console.log("Node: 'error' event (" + err.message + ")");
 });
-console.log( m.plusOne() ); // 11
-console.log( m.plusOne() ); // 12
-console.log( m.plusOne() ); // 13
+// console.log( m.plusOne() ); // 11
+//console.log( m.plusOne() ); // 12
+//console.log( m.plusOne() ); // 13

@@ -26,6 +26,7 @@ struct Baton {
   string address_;
 
   string msgtext;
+  pn_tracker_t tracker;
   
 };
 
@@ -37,8 +38,6 @@ void AsyncWork(uv_work_t* req) {
   switch(baton->command) {
 
     case CONNECT: 
-      ret = pn_messenger_start(baton->messenger_);
-      cerr << "AsyncWork (CONNECT):  Started messenger with return value of " << ret << "\n";
       if (pn_messenger_errno(baton->messenger_)) {
         baton->error_code = pn_messenger_errno(baton->messenger_);
         baton->error_message = pn_messenger_error(baton->messenger_);
@@ -59,23 +58,26 @@ void AsyncWork(uv_work_t* req) {
       pn_message_set_address(message, baton->address_.c_str());
       pn_data_t* body = pn_message_body(message);
       pn_data_put_string(body, pn_bytes(baton->msgtext.size(), const_cast<char*>(baton->msgtext.c_str())));
-      pn_messenger_put(baton->messenger_, message);
-      cerr << "AsyncWork (SEND): Sending message '" << pn_data_get_string(pn_message_body(message)).start << "' to address " << pn_message_get_address(message) << " (" << pn_messenger_outgoing(baton->messenger_) << " outgoing)\n";
+      ret = pn_messenger_put(baton->messenger_, message);
+      baton->tracker = pn_messenger_outgoing_tracker(baton->messenger_);
+      cerr << "AsyncWork (SEND): Put message '" << pn_data_get_string(pn_message_body(message)).start << "' (return value: " << ret << ", tracker: " << baton->tracker << ", status: " << pn_messenger_status(baton->messenger_,baton->tracker) << ", outgoing: " << pn_messenger_outgoing(baton->messenger_) << ")\n";
+      
       if (pn_messenger_errno(baton->messenger_)) {
         baton->error_code = pn_messenger_errno(baton->messenger_);
         baton->error_message = pn_messenger_error(baton->messenger_);
       } else {
-        pn_messenger_send(baton->messenger_);
+        pn_messenger_start(baton->messenger_);
+        ret = pn_messenger_send(baton->messenger_);
         if (pn_messenger_errno(baton->messenger_)) {
           baton->error_code = pn_messenger_errno(baton->messenger_);
           baton->error_message = pn_messenger_error(baton->messenger_);
         } else { 
-          cerr << "AsyncWork (SEND): Message sent (" << pn_messenger_outgoing(baton->messenger_) << " outgoing)\n";
+          cerr << "AsyncWork (SEND): Sent message (return value: " << ret << ", tracker: " << baton->tracker << ", status: " << pn_messenger_status(baton->messenger_,baton->tracker) << ", outgoing: " << pn_messenger_outgoing(baton->messenger_) << "\n";
           baton->error_code = 0;
-          // pn_messenger_recv(baton->messenger_,1);
-          // pn_message_t* testmsg = pn_message();
-          // pn_messenger_get(baton->messenger_,testmsg);
-          // cerr << "AsyncWork (SEND):  Test recv/get body = '" << pn_data_get_string(pn_message_body(testmsg)).start << "'\n";
+          pn_messenger_stop(baton->messenger_);
+
+          // Where to put this?!?
+          // pn_messenger_free(baton->messenger_);
         }
       }
       break;
@@ -108,7 +110,7 @@ void AsyncAfter(uv_work_t* req) {
         Local<Value> argv[] = { err };
         baton->callback->Call(Context::GetCurrent()->Global(), 1, argv);
       } else {
-        cerr << "AsyncAfter (SEND): Invoking callback on success\n";
+        cerr << "AsyncAfter (SEND): Invoking callback on success (tracker: " << baton->tracker << ")\n";
         Local<Value> argv[] = {};
         baton->callback->Call(Context::GetCurrent()->Global(), 0, argv);
       }
