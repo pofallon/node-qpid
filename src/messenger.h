@@ -36,12 +36,12 @@ class Messenger : public node::ObjectWrap {
  public:
   static void Init(v8::Handle<v8::Object> target);
 
-  static void AsyncWork(uv_work_t* req);
-  static void AsyncAfter(uv_work_t* req);
-
  private:
   Messenger();
   ~Messenger();
+
+  static void AsyncWork(uv_work_t* req);
+  static void AsyncAfter(uv_work_t* req);
 
   static v8::Handle<v8::Value> New(const v8::Arguments& args);
   static v8::Handle<v8::Value> Send(const v8::Arguments& args);
