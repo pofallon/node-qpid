@@ -7,6 +7,6 @@ Currently expects you to already have the qpid-proton library installed on your 
 http://qpid.apache.org/proton/
 
 ## What does it do so far?
-Not much yet.  It can connect to Azure ServiceBus and send a message.
+Not much yet.  It can connect to Azure ServiceBus via AMQP and send a message.
 
 If you send more than a couple of messages at a time it gets cranky... :-)
