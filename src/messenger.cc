@@ -11,174 +11,169 @@ Messenger::Messenger() { };
 
 Messenger::~Messenger() { };
 
-void Messenger::AsyncWork(uv_work_t* req) {
-
-  Baton* baton = static_cast<Baton*>(req->data);
-  int ret;
-  
-  switch(baton->command) {
-
-    case CONNECT: 
-      if (pn_messenger_errno(baton->messenger_)) {
-        baton->error_code = pn_messenger_errno(baton->messenger_);
-        baton->error_message = pn_messenger_error(baton->messenger_);
-      } else {
-        cerr << "AsyncWork (CONNECT): Subscribing to " << baton->address_ << "\n";
-        pn_messenger_subscribe(baton->messenger_, baton->address_.c_str());
-        if (pn_messenger_errno(baton->messenger_)) {
-          baton->error_code = pn_messenger_errno(baton->messenger_);
-          baton->error_message = pn_messenger_error(baton->messenger_);
-        } else {
-          baton->error_code = 0;
-        }
-      }
-      break;
-
-    case SEND:
-      pn_message_t* message = pn_message();
-      pn_message_set_address(message, baton->address_.c_str());
-      pn_data_t* body = pn_message_body(message);
-      pn_data_put_string(body, pn_bytes(baton->msgtext.size(), const_cast<char*>(baton->msgtext.c_str())));
-      ret = pn_messenger_put(baton->messenger_, message);
-      baton->tracker = pn_messenger_outgoing_tracker(baton->messenger_);
-      cerr << "AsyncWork (SEND): Put message '" << pn_data_get_string(pn_message_body(message)).start << "' (return value: " << ret << ", tracker: " << baton->tracker << ", status: " << pn_messenger_status(baton->messenger_,baton->tracker) << ", outgoing: " << pn_messenger_outgoing(baton->messenger_) << ")\n";
-      
-      if (pn_messenger_errno(baton->messenger_)) {
-        baton->error_code = pn_messenger_errno(baton->messenger_);
-        baton->error_message = pn_messenger_error(baton->messenger_);
-      } else {
-        pn_messenger_start(baton->messenger_);
-        ret = pn_messenger_send(baton->messenger_);
-        if (pn_messenger_errno(baton->messenger_)) {
-          baton->error_code = pn_messenger_errno(baton->messenger_);
-          baton->error_message = pn_messenger_error(baton->messenger_);
-        } else { 
-          cerr << "AsyncWork (SEND): Sent message (return value: " << ret << ", tracker: " << baton->tracker << ", status: " << pn_messenger_status(baton->messenger_,baton->tracker) << ", outgoing: " << pn_messenger_outgoing(baton->messenger_) << "\n";
-          baton->error_code = 0;
-          pn_messenger_stop(baton->messenger_);
-
-          // Where to put this?!?
-          // pn_messenger_free(baton->messenger_);
-        }
-      }
-      break;
-  }
-
-}
-
-void Messenger::AsyncAfter(uv_work_t* req) {
-  HandleScope scope;
-  Baton* baton = static_cast<Baton*>(req->data);
-
-  switch(baton->command) {
-    case CONNECT:
-      if (baton->error_code > 0) {
-        Local<Value> err = Exception::Error(
-        String::New(baton->error_message.c_str()));
-        Local<Value> argv[2] = { Local<Value>::New(String::New("error")), err };
-        MakeCallback(baton->obj, "emit", 2, argv);
-      } else {
-        cerr << "AsyncAfter (CONNECT): Emitting 'connected' event\n";
-        Local<Value> argv[1] = { Local<Value>::New(String::New("connected")) };
-        MakeCallback(baton->obj, "emit", 1, argv);
-      }
-      baton->obj.Dispose();
-      break;
-
-    case SEND:
-      if (baton->error_code > 0) {
-        Local<Value> err = Exception::Error(String::New(baton->error_message.c_str()));
-        Local<Value> argv[] = { err };
-        baton->callback->Call(Context::GetCurrent()->Global(), 1, argv);
-      } else {
-        cerr << "AsyncAfter (SEND): Invoking callback on success (tracker: " << baton->tracker << ")\n";
-        Local<Value> argv[] = {};
-        baton->callback->Call(Context::GetCurrent()->Global(), 0, argv);
-      }
-      baton->callback.Dispose();
-      break;
-     
-  }
-
-  delete baton;
-}
-
+Persistent<FunctionTemplate> Messenger::constructor_template;
 
 void Messenger::Init(Handle<Object> target) {
-  // Prepare constructor template
-  Local<FunctionTemplate> tpl = FunctionTemplate::New(New);
-  tpl->SetClassName(String::NewSymbol("Messenger"));
-  tpl->InstanceTemplate()->SetInternalFieldCount(2);
-  // Prototype
-  tpl->PrototypeTemplate()->Set(String::NewSymbol("plusOne"),
-      FunctionTemplate::New(PlusOne)->GetFunction());
-  tpl->PrototypeTemplate()->Set(String::NewSymbol("send"),
-      FunctionTemplate::New(Send)->GetFunction());
+  HandleScope scope;
 
-  Persistent<Function> constructor = Persistent<Function>::New(tpl->GetFunction());
-  target->Set(String::NewSymbol("Messenger"), constructor);
+  Local<FunctionTemplate> t = FunctionTemplate::New(New);
+
+  constructor_template = Persistent<FunctionTemplate>::New(t);
+  constructor_template->InstanceTemplate()->SetInternalFieldCount(1);
+  constructor_template->SetClassName(String::NewSymbol("Messenger"));
+
+  NODE_SET_PROTOTYPE_METHOD(constructor_template, "send", Send);
+  NODE_SET_PROTOTYPE_METHOD(constructor_template, "subscribe", Subscribe);
+
+  target->Set(String::NewSymbol("Messenger"),
+    constructor_template->GetFunction());
+ 
 }
 
 Handle<Value> Messenger::New(const Arguments& args) {
   HandleScope scope;
 
-  Messenger* obj = new Messenger();
-  // obj->counter_ = args[0]->IsUndefined() ? 0 : args[0]->NumberValue();
-  obj->counter_ = 0;
-  obj->messenger_ = pn_messenger(NULL);
+  Messenger* msgr = new Messenger();
+  msgr->messenger = pn_messenger(NULL);
+
+  // Does this work?
   if (!args[0]->IsUndefined()) {
-    obj->address_ = *String::AsciiValue(args[0]->ToString());
-    
-    Baton* baton = new Baton();
-    baton->command = CONNECT;
-    baton->obj = Persistent<Object>::New(args.This());
-    baton->messenger_ = obj->messenger_;
-    baton->address_ = obj->address_;
-
-    cerr << "Messenger::New: Connecting to " << baton->address_ << "\n";
-
-    baton->request.data = baton;
-    uv_queue_work(uv_default_loop(), &baton->request, Messenger::AsyncWork, Messenger::AsyncAfter);
+    Subscribe(args);
   }
-  obj->Wrap(args.This());
+
+  msgr->Wrap(args.This());
 
   return args.This();
+}
+
+Handle<Value> Messenger::Subscribe(const Arguments& args) {
+  HandleScope scope;
+
+  Messenger* msgr = ObjectWrap::Unwrap<Messenger>(args.This());
+
+  REQUIRE_ARGUMENT_STRING(0, address);
+  OPTIONAL_ARGUMENT_FUNCTION(1, callback);
+
+  // This assumes that a messenger can only subscribe to one address at a time
+  // (which may not be true)
+  msgr->address = *address;
+
+  SubscribeBaton* baton = new SubscribeBaton(msgr, callback, *address);
+  
+  cerr << "Messenger::Subscribe: Subscribing to " << baton->address << "\n";
+
+  Work_BeginSubscribe(baton);
+
+  return args.This();
+  
+}
+
+void Messenger::Work_BeginSubscribe(Baton* baton) {
+  int status = uv_queue_work(uv_default_loop(),
+    &baton->request, Work_Subscribe, Work_AfterSubscribe);
+
+  assert(status == 0);
+
+}
+
+void Messenger::Work_Subscribe(uv_work_t* req) {
+
+  SubscribeBaton* baton = static_cast<SubscribeBaton*>(req->data);
+
+  cerr << "Work_Subscribe: Subscribing to " << baton->address << "\n";
+  pn_messenger_subscribe(baton->msgr->messenger, baton->address.c_str());
+
+}
+
+void Messenger::Work_AfterSubscribe(uv_work_t* req) {
+
+  SubscribeBaton* baton = static_cast<SubscribeBaton*>(req->data);
+
+  if (baton->error_code > 0) {
+    /* Local<Value> err = Exception::Error(
+    String::New(baton->error_message.c_str()));
+    Local<Value> argv[2] = { Local<Value>::New(String::New("error")), err };
+    MakeCallback(baton->obj, "emit", 2, argv); */
+  } else {
+    cerr << "Work_AfterSubscribe: Emitting 'subscribed' event\n";
+    Local<Value> args[] = { String::New("subscribed") };
+    // MakeCallback(baton->msgr, "emit", 1, argv);
+    EMIT_EVENT(baton->msgr->handle_, 1, args);
+  }
+
+  delete baton;
+
 }
 
 Handle<Value> Messenger::Send(const Arguments& args) {
   HandleScope scope;
   
-  Messenger* obj = ObjectWrap::Unwrap<Messenger>(args.This());
+  Messenger* msgr = ObjectWrap::Unwrap<Messenger>(args.This());
 
-  if (!args[0]->IsUndefined()) {
-    
-    Baton* baton = new Baton();
-    baton->command = SEND;
-    baton->messenger_ = obj->messenger_;
-    baton->address_ = obj->address_;
-    baton->msgtext = *String::Utf8Value(args[0]->ToString());
-    
-    if (args[1]->IsFunction()) {
+  REQUIRE_ARGUMENT_STRING(0, msg);
+  OPTIONAL_ARGUMENT_FUNCTION(1, callback);
 
-      Local<Function> callback = Local<Function>::Cast(args[1]);
-      baton->callback = Persistent<Function>::New(callback);
-
-    }
-
-    baton->request.data = baton;
-    uv_queue_work(uv_default_loop(), &baton->request, AsyncWork, AsyncAfter);
-
-  }
+  SendBaton* baton = new SendBaton(msgr, callback, *msg);
+  
+  Work_BeginSend(baton);
 
   return Undefined();
     
 }
 
-Handle<Value> Messenger::PlusOne(const Arguments& args) {
+void Messenger::Work_BeginSend(Baton* baton) {
+  int status = uv_queue_work(uv_default_loop(),
+    &baton->request, Work_Send, Work_AfterSend);
+
+  assert(status == 0);
+
+}
+
+void Messenger::Work_Send(uv_work_t* req) {
+
+  int ret = 0;
+  SendBaton* baton = static_cast<SendBaton*>(req->data);
+  pn_messenger_t* messenger = baton->msgr->messenger;
+
+  pn_message_t* message = pn_message();
+
+  // For now, it defaults to sending a message to the (one) subscribed address
+  pn_message_set_address(message, baton->msgr->address.c_str());
+  pn_data_t* body = pn_message_body(message);
+
+  pn_data_put_string(body, pn_bytes(baton->msgtext.size(), const_cast<char*>(baton->msgtext.c_str())));
+
+  assert(!pn_messenger_put(messenger, message));
+  baton->tracker = pn_messenger_outgoing_tracker(messenger);
+  cerr << "Work_Send: Put message '" << pn_data_get_string(pn_message_body(message)).start << "' (return value: " << ret << ", tracker: " << baton->tracker << ", status: " << pn_messenger_status(messenger,baton->tracker) << ", outgoing: " << pn_messenger_outgoing(messenger) << ")\n";
+
+  assert(!pn_messenger_start(messenger));
+  assert(!pn_messenger_send(messenger));
+  cerr << "Work_Send: Sent message (return value: " << ret << ", tracker: " << baton->tracker << ", status: " << pn_messenger_status(messenger,baton->tracker) << ", outgoing: " << pn_messenger_outgoing(messenger) << "\n";
+  
+  // It appears that messages are only actually sent after "stop" is called -- is there a reason for that?
+  pn_messenger_stop(messenger);
+
+  pn_message_free(message);
+
+  // Where to put this?!?
+  // pn_messenger_free(messenger);
+}
+
+void Messenger::Work_AfterSend(uv_work_t* req) {
   HandleScope scope;
+  SendBaton* baton = static_cast<SendBaton*>(req->data);
 
-  Messenger* obj = ObjectWrap::Unwrap<Messenger>(args.This());
-  obj->counter_ += 1;
+  if (baton->error_code > 0) {
+    Local<Value> err = Exception::Error(String::New(baton->error_message.c_str()));
+    Local<Value> argv[] = { err };
+    baton->callback->Call(Context::GetCurrent()->Global(), 1, argv);
+  } else {
+    cerr << "Work_AfterSend: Invoking callback on success (tracker: " << baton->tracker << ")\n";
+    Local<Value> argv[] = {};
+    baton->callback->Call(Context::GetCurrent()->Global(), 0, argv);
+  }
 
-  return scope.Close(Number::New(obj->counter_));
+  delete baton;
+
 }

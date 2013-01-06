@@ -8,12 +8,12 @@ var url = 'amqps://' + nconf.get('servicebus:issuer') + ':' + nconf.get('service
 
 // console.log(url);
 
-var max = 2;
+var max = 4;
 var count = 0;
 
-var m = new Messenger(url);
-m.on('connected', function() {
-  console.log("Node: 'connected' event");
+var m = new Messenger().subscribe(url);
+m.on('subscribed', function() {
+  console.log("Node: 'subscribed' event");
   for (var i = 0; i <= max-1; i++) {
     m.send('Testing: ' + i + ' - ' + Date.now(), function(err) {
       count++;
