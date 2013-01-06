@@ -1,3 +1,9 @@
+// Adapted almost entirely from node_sqlite3
+// Copyright (c) 2011, Konstantin Käfer <kkaefer@gmail.com>
+// All rights reserved.
+
+// https://github.com/developmentseed/node-sqlite3/blob/master/LICENSE
+
 #ifndef NODE_CPROTON_SRC_MACROS_H
 #define NODE_CPROTON_SRC_MACROS_H
 
