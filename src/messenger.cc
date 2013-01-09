@@ -37,6 +37,7 @@ Handle<Value> Messenger::New(const Arguments& args) {
   msgr->messenger = pn_messenger(NULL);
 
   // Does this work?
+  // (not like this, no)
   if (!args[0]->IsUndefined()) {
     Subscribe(args);
   }
@@ -146,12 +147,12 @@ void Messenger::Work_Send(uv_work_t* req) {
   assert(!pn_messenger_put(messenger, message));
   baton->tracker = pn_messenger_outgoing_tracker(messenger);
   cerr << "Work_Send: Put message '" << pn_data_get_string(pn_message_body(message)).start << "' (return value: " << ret << ", tracker: " << baton->tracker << ", status: " << pn_messenger_status(messenger,baton->tracker) << ", outgoing: " << pn_messenger_outgoing(messenger) << ")\n";
-
+  
   assert(!pn_messenger_start(messenger));
+
   assert(!pn_messenger_send(messenger));
   cerr << "Work_Send: Sent message (return value: " << ret << ", tracker: " << baton->tracker << ", status: " << pn_messenger_status(messenger,baton->tracker) << ", outgoing: " << pn_messenger_outgoing(messenger) << "\n";
   
-  // It appears that messages are only actually sent after "stop" is called -- is there a reason for that?
   pn_messenger_stop(messenger);
 
   pn_message_free(message);
