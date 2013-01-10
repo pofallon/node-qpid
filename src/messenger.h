@@ -27,8 +27,6 @@ class Messenger : public node::ObjectWrap {
     int error_code;
     std::string error_message;
 
-    // pn_messenger_t* messenger_;
-
     Baton(Messenger* msgr_, Handle<Function> cb_) :
         msgr(msgr_) {
       msgr->Ref();
@@ -71,13 +69,13 @@ class Messenger : public node::ObjectWrap {
   WORK_DEFINITION(Subscribe)
   WORK_DEFINITION(Start)
   WORK_DEFINITION(Stop)
-  WORK_DEFINITION(Receive)
-  WORK_DEFINITION(Get)
   WORK_DEFINITION(Put)
+  WORK_DEFINITION(Listen)
 
   static Handle<Value> New(const Arguments& args);
   std::string address;
   pn_messenger_t * messenger;
+  pn_messenger_t * receiver;
 };
 
 #endif

@@ -24,6 +24,7 @@ void Messenger::Init(Handle<Object> target) {
 
   NODE_SET_PROTOTYPE_METHOD(constructor_template, "send", Send);
   NODE_SET_PROTOTYPE_METHOD(constructor_template, "subscribe", Subscribe);
+  NODE_SET_PROTOTYPE_METHOD(constructor_template, "listen", Listen);
 
   target->Set(String::NewSymbol("Messenger"),
     constructor_template->GetFunction());
@@ -176,5 +177,87 @@ void Messenger::Work_AfterSend(uv_work_t* req) {
   }
 
   delete baton;
+
+}
+
+Handle<Value> Messenger::Listen(const Arguments& args) {
+  HandleScope scope;
+
+  OPTIONAL_ARGUMENT_FUNCTION(0, callback);
+
+  Messenger* msgr = ObjectWrap::Unwrap<Messenger>(args.This());
+
+  Baton* baton = new Baton(msgr, callback);
+
+  Work_BeginListen(baton);
+
+  return Undefined();
+
+}
+
+void Messenger::Work_BeginListen(Baton *baton) {
+
+  // Set a flag indicating should listen
+
+  int status = uv_queue_work(uv_default_loop(),
+    &baton->request, Work_Listen, Work_AfterListen);
+
+  assert(status == 0);
+
+}
+
+void Messenger::Work_Listen(uv_work_t* req) {
+
+  Baton* baton = static_cast<SendBaton*>(req->data);
+  pn_messenger_t* messenger = baton->msgr->messenger;
+
+  // loop of recv and get(s) (similar to recv C example)
+  // exit when should stop listening (set with 'stop()' or when module goes away)
+
+  // Pass messages back from thread (using uv_async_send)
+
+}
+
+void Messenger::Work_AfterListen(uv_work_t* req) {
+
+  HandleScope scope;
+  SendBaton* baton = static_cast<SendBaton*>(req->data);
+
+  delete baton;
+
+}
+
+Handle<Value> Messenger::Stop(const Arguments& args) {
+  HandleScope scope;
+
+  OPTIONAL_ARGUMENT_FUNCTION(0, callback);
+
+  Messenger* msgr = ObjectWrap::Unwrap<Messenger>(args.This());
+
+  Baton* baton = new Baton(msgr, callback);
+
+  Work_BeginStop(baton);
+
+  return Undefined();
+
+}
+
+void Messenger::Work_BeginStop(Baton *baton) {
+
+  int status = uv_queue_work(uv_default_loop(),
+    &baton->request, Work_Stop, Work_AfterStop);
+
+  assert(status == 0);
+
+}
+
+void Messenger::Work_Stop(uv_work_t* req) {
+
+  // Set some flag to indicate should no longer listen
+  // Call driver "wakeup" function to stop blocking messenger receive function call
+
+}
+
+void Messenger::Work_AfterStop(uv_work_t* req) {
 
 }
