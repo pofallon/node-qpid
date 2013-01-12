@@ -1,7 +1,9 @@
 #define BUILDING_NODE_EXTENSION
 #include <node.h>
 #include <iostream>
+#include <vector>
 #include "messenger.h"
+#include "async.h"
 
 using namespace v8;
 using namespace node;
@@ -36,6 +38,8 @@ Handle<Value> Messenger::New(const Arguments& args) {
 
   Messenger* msgr = new Messenger();
   msgr->messenger = pn_messenger(NULL);
+  msgr->receiver = pn_messenger(NULL);
+  msgr->listening = false;
 
   // Does this work?
   // (not like this, no)
@@ -83,7 +87,7 @@ void Messenger::Work_Subscribe(uv_work_t* req) {
   SubscribeBaton* baton = static_cast<SubscribeBaton*>(req->data);
 
   cerr << "Work_Subscribe: Subscribing to " << baton->address << "\n";
-  pn_messenger_subscribe(baton->msgr->messenger, baton->address.c_str());
+  pn_messenger_subscribe(baton->msgr->receiver, baton->address.c_str());
 
 }
 
@@ -183,13 +187,19 @@ void Messenger::Work_AfterSend(uv_work_t* req) {
 Handle<Value> Messenger::Listen(const Arguments& args) {
   HandleScope scope;
 
-  OPTIONAL_ARGUMENT_FUNCTION(0, callback);
-
   Messenger* msgr = ObjectWrap::Unwrap<Messenger>(args.This());
 
-  Baton* baton = new Baton(msgr, callback);
+  cerr << "Messenger::Listen: About to check listening (which is " << msgr->listening << ")\n";
 
-  Work_BeginListen(baton);
+  if (!msgr->listening) {
+
+    Local<Function> emitter = Local<Function>::Cast((msgr->handle_)->Get(String::NewSymbol("emit")));
+    ListenBaton* baton = new ListenBaton(msgr, emitter);
+
+    cerr << "Messenger::Listen: About to BeginListen\n";
+    Work_BeginListen(baton);
+
+  }
 
   return Undefined();
 
@@ -197,8 +207,14 @@ Handle<Value> Messenger::Listen(const Arguments& args) {
 
 void Messenger::Work_BeginListen(Baton *baton) {
 
-  // Set a flag indicating should listen
+  ListenBaton* listen_baton = static_cast<ListenBaton*>(baton);
+  listen_baton->async = new Async(listen_baton->msgr, AsyncListen);
+  listen_baton->async->emitter = Persistent<Function>::New(listen_baton->callback);
 
+  listen_baton->msgr->listening = true;
+
+  cerr << "Work_BeginListen: About to uv_queue_work\n";
+  
   int status = uv_queue_work(uv_default_loop(),
     &baton->request, Work_Listen, Work_AfterListen);
 
@@ -206,15 +222,86 @@ void Messenger::Work_BeginListen(Baton *baton) {
 
 }
 
+void Messenger::CloseEmitter(uv_handle_t* handle) {
+
+  assert(handle != NULL);
+  assert(handle->data != NULL);
+  Async* async = static_cast<Async*>(handle->data);
+  delete async;
+  handle->data = NULL;
+
+}
+
 void Messenger::Work_Listen(uv_work_t* req) {
 
-  Baton* baton = static_cast<SendBaton*>(req->data);
-  pn_messenger_t* messenger = baton->msgr->messenger;
+  ListenBaton* baton = static_cast<ListenBaton*>(req->data);
+  pn_messenger_t* receiver = baton->msgr->receiver;
+  Async* async = baton->async;
 
-  // loop of recv and get(s) (similar to recv C example)
-  // exit when should stop listening (set with 'stop()' or when module goes away)
+  sleep(5);
 
-  // Pass messages back from thread (using uv_async_send)
+  while (baton->msgr->listening) {
+
+    cerr << "Work_Listen: About to block on recv\n";
+
+    pn_messenger_recv(receiver, 1024);
+
+    cerr << "Work_Listen: Leaving blocking recv (incoming = " << pn_messenger_incoming(receiver) << ", error = " << pn_messenger_error(receiver) << ")\n";
+
+    while(pn_messenger_incoming(receiver)) {
+
+      cerr << "Work_Listen: Iterating over incoming messages\n";
+
+      pn_message_t* message;
+      pn_messenger_get(receiver, message);
+
+      NODE_CPROTON_MUTEX_LOCK(&async->mutex)
+      async->data.push_back(message);
+      NODE_CPROTON_MUTEX_UNLOCK(&async->mutex)
+
+      uv_async_send(&async->watcher);
+
+    } 
+
+  }
+
+  async->completed = true;
+  uv_async_send(&async->watcher);
+
+}
+
+void Messenger::AsyncListen(uv_async_t* handle, int status) {
+  HandleScope scope;
+  Async* async = static_cast<Async*>(handle->data);
+
+  while (true) {
+
+    Messages messages;
+    NODE_CPROTON_MUTEX_LOCK(&async->mutex)
+    messages.swap(async->data);
+    NODE_CPROTON_MUTEX_UNLOCK(&async->mutex)
+
+    if (messages.empty()) {
+      break;
+    }
+
+    Local<Value> argv[1];
+
+    Messages::const_iterator it = messages.begin();
+    Messages::const_iterator end = messages.end();
+    for (int i = 0; it < end; it++, i++) {
+
+      argv[0] = String::NewSymbol("Message!");
+      TRY_CATCH_CALL(async->msgr->handle_, async->emitter, 1, argv)
+      delete *it;
+
+    }
+
+  }
+
+  if (async->completed) {
+    uv_close((uv_handle_t*)handle, CloseEmitter);
+  }
 
 }
 
@@ -222,6 +309,8 @@ void Messenger::Work_AfterListen(uv_work_t* req) {
 
   HandleScope scope;
   SendBaton* baton = static_cast<SendBaton*>(req->data);
+
+  cerr << "Work_AfterListen:  cleaning up\n";
 
   delete baton;
 

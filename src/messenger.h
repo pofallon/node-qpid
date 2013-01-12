@@ -2,16 +2,21 @@
 #define MESSENGER_H
 
 #include <string>
+#include <vector>
 
 #include <node.h>
 
 #include "proton/message.h"
 #include "proton/messenger.h"
 
+// #include "async.h"
 #include "macros.h"
+#include "threading.h"
 
 using namespace v8;
 using namespace node;
+
+typedef std::vector<pn_message_t*> Messages;
 
 class Messenger : public node::ObjectWrap {
  public:
@@ -61,6 +66,45 @@ class Messenger : public node::ObjectWrap {
 
   };
 
+  struct Async;
+
+  struct ListenBaton : Baton {
+
+    Async* async;
+
+    ListenBaton(Messenger* msgr_, Handle<Function> cb_) : 
+      Baton(msgr_, cb_) {} 
+
+  };
+
+  struct Async {
+    uv_async_t watcher;
+    Messenger* msgr;
+    Messages data;
+    NODE_CPROTON_MUTEX_t;
+    bool completed;
+    int retrieved;
+
+    // Store the emitter here because we don't have
+    // access to the baton in the async callback.
+    Persistent<Function> emitter;
+
+    Async(Messenger* m, uv_async_cb async_cb) :
+            msgr(m), completed(false), retrieved(0) {
+        watcher.data = this;
+        NODE_CPROTON_MUTEX_INIT
+        msgr->Ref();
+        uv_async_init(uv_default_loop(), &watcher, async_cb);
+    }
+
+    ~Async() {
+        msgr->Unref();
+        emitter.Dispose();
+        NODE_CPROTON_MUTEX_DESTROY
+    }
+  };
+
+
  private:
   Messenger();
   ~Messenger();
@@ -72,10 +116,14 @@ class Messenger : public node::ObjectWrap {
   WORK_DEFINITION(Put)
   WORK_DEFINITION(Listen)
 
+  static void AsyncListen(uv_async_t* handle, int status);
+  static void CloseEmitter(uv_handle_t* handle);
+
   static Handle<Value> New(const Arguments& args);
   std::string address;
   pn_messenger_t * messenger;
   pn_messenger_t * receiver;
+  bool listening;
 };
 
 #endif
