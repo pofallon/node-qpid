@@ -1,6 +1,5 @@
 var nconf = require('nconf');
-var Messenger = require('../lib/cproton').Messenger;
-// var Messenger = require('../lib/Messenger');
+var Messenger = require('..').proton.Messenger;
 
 nconf.file(process.env.HOME + '/.cproton/config.json');
 
@@ -8,29 +7,33 @@ var url = 'amqps://' + nconf.get('servicebus:issuer') + ':' + nconf.get('service
 
 // console.log(url);
 
-var max = 4;
-var count = 0;
+var max = 20;
 
-var m = new Messenger().subscribe(url);
-m.on('subscribed', function() {
-  console.log("Node: 'subscribed' event");
-  for (var i = 0; i <= max-1; i++) {
-    m.send('Testing: ' + i + ' - ' + Date.now(), function(err) {
-      count++;
-      if (err) {
-        console.log("Node: send callback count #" + count + " (error: " + err.message + ")");
-      } else { 
-        console.log("Node: send callback count #" + count + " (success)");
-        if (count === max) {
-          console.log("Done!");
-        }
-      }
+var doSend = function(msgr, count) {
+
+  if (count > 0) {
+    var message = "Hello " + Date.now();
+    msgr.send(message, function() {
+      console.log("Message sent: " + message);
+      doSend(msgr, --count);
     });
   }
+
+};
+
+var m = new Messenger().subscribe(url);
+
+m.on('subscribed', function() {
+  console.log("Successfully subscribed!");
+  doSend(m, max);
 });
+
+m.on('message', function(msg) {
+  console.log("Message received: " + msg.body);
+});
+
 m.on('error', function(err) {
   console.log("Node: 'error' event (" + err.message + ")");
 });
-// console.log( m.plusOne() ); // 11
-//console.log( m.plusOne() ); // 12
-//console.log( m.plusOne() ); // 13
+
+m.listen();

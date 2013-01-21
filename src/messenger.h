@@ -118,12 +118,16 @@ class Messenger : public node::ObjectWrap {
 
   static void AsyncListen(uv_async_t* handle, int status);
   static void CloseEmitter(uv_handle_t* handle);
+  static Local<Object> MessageToJS(pn_message_t* message);
 
   static Handle<Value> New(const Arguments& args);
   std::string address;
   pn_messenger_t * messenger;
   pn_messenger_t * receiver;
   bool listening;
+  bool listenWait;
+  ListenBaton * listenWaitBaton;
+  int subscriptions;
 };
 
 #endif

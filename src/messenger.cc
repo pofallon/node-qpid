@@ -40,6 +40,8 @@ Handle<Value> Messenger::New(const Arguments& args) {
   msgr->messenger = pn_messenger(NULL);
   msgr->receiver = pn_messenger(NULL);
   msgr->listening = false;
+  msgr->listenWait = false;
+  msgr->subscriptions = 0;
 
   // Does this work?
   // (not like this, no)
@@ -66,7 +68,7 @@ Handle<Value> Messenger::Subscribe(const Arguments& args) {
 
   SubscribeBaton* baton = new SubscribeBaton(msgr, callback, *address);
   
-  cerr << "Messenger::Subscribe: Subscribing to " << baton->address << "\n";
+  // cerr << "Messenger::Subscribe: Subscribing to " << baton->address << "\n";
 
   Work_BeginSubscribe(baton);
 
@@ -86,7 +88,7 @@ void Messenger::Work_Subscribe(uv_work_t* req) {
 
   SubscribeBaton* baton = static_cast<SubscribeBaton*>(req->data);
 
-  cerr << "Work_Subscribe: Subscribing to " << baton->address << "\n";
+  // cerr << "Work_Subscribe: Subscribing to " << baton->address << "\n";
   pn_messenger_subscribe(baton->msgr->receiver, baton->address.c_str());
 
 }
@@ -95,16 +97,26 @@ void Messenger::Work_AfterSubscribe(uv_work_t* req) {
 
   SubscribeBaton* baton = static_cast<SubscribeBaton*>(req->data);
 
+  baton->msgr->subscriptions++;
+
   if (baton->error_code > 0) {
     /* Local<Value> err = Exception::Error(
     String::New(baton->error_message.c_str()));
     Local<Value> argv[2] = { Local<Value>::New(String::New("error")), err };
     MakeCallback(baton->obj, "emit", 2, argv); */
   } else {
-    cerr << "Work_AfterSubscribe: Emitting 'subscribed' event\n";
+    // cerr << "Work_AfterSubscribe: Emitting 'subscribed' event\n";
     Local<Value> args[] = { String::New("subscribed") };
     // MakeCallback(baton->msgr, "emit", 1, argv);
     EMIT_EVENT(baton->msgr->handle_, 1, args);
+  }
+
+  if (baton->msgr->listenWait) {
+
+    // cerr << "Listen Wait is TRUE\n";
+ 
+    Work_BeginListen(baton->msgr->listenWaitBaton);
+
   }
 
   delete baton;
@@ -151,12 +163,12 @@ void Messenger::Work_Send(uv_work_t* req) {
 
   assert(!pn_messenger_put(messenger, message));
   baton->tracker = pn_messenger_outgoing_tracker(messenger);
-  cerr << "Work_Send: Put message '" << pn_data_get_string(pn_message_body(message)).start << "' (return value: " << ret << ", tracker: " << baton->tracker << ", status: " << pn_messenger_status(messenger,baton->tracker) << ", outgoing: " << pn_messenger_outgoing(messenger) << ")\n";
+  // cerr << "Work_Send: Put message '" << pn_data_get_string(pn_message_body(message)).start << "' (return value: " << ret << ", tracker: " << baton->tracker << ", status: " << pn_messenger_status(messenger,baton->tracker) << ", outgoing: " << pn_messenger_outgoing(messenger) << ")\n";
   
   assert(!pn_messenger_start(messenger));
 
   assert(!pn_messenger_send(messenger));
-  cerr << "Work_Send: Sent message (return value: " << ret << ", tracker: " << baton->tracker << ", status: " << pn_messenger_status(messenger,baton->tracker) << ", outgoing: " << pn_messenger_outgoing(messenger) << "\n";
+  // cerr << "Work_Send: Sent message (return value: " << ret << ", tracker: " << baton->tracker << ", status: " << pn_messenger_status(messenger,baton->tracker) << ", outgoing: " << pn_messenger_outgoing(messenger) << "\n";
   
   pn_messenger_stop(messenger);
 
@@ -175,7 +187,7 @@ void Messenger::Work_AfterSend(uv_work_t* req) {
     Local<Value> argv[] = { err };
     baton->callback->Call(Context::GetCurrent()->Global(), 1, argv);
   } else {
-    cerr << "Work_AfterSend: Invoking callback on success (tracker: " << baton->tracker << ")\n";
+    // cerr << "Work_AfterSend: Invoking callback on success (tracker: " << baton->tracker << ")\n";
     Local<Value> argv[] = {};
     baton->callback->Call(Context::GetCurrent()->Global(), 0, argv);
   }
@@ -189,15 +201,24 @@ Handle<Value> Messenger::Listen(const Arguments& args) {
 
   Messenger* msgr = ObjectWrap::Unwrap<Messenger>(args.This());
 
-  cerr << "Messenger::Listen: About to check listening (which is " << msgr->listening << ")\n";
+  // cerr << "Messenger::Listen: About to check listening (which is " << msgr->listening << ")\n";
 
   if (!msgr->listening) {
 
     Local<Function> emitter = Local<Function>::Cast((msgr->handle_)->Get(String::NewSymbol("emit")));
     ListenBaton* baton = new ListenBaton(msgr, emitter);
 
-    cerr << "Messenger::Listen: About to BeginListen\n";
-    Work_BeginListen(baton);
+    if (msgr->subscriptions > 0) {
+
+      // cerr << "Messenger::Listen: About to BeginListen\n";
+      Work_BeginListen(baton);
+
+    } else {
+
+      msgr->listenWait = true;
+      msgr->listenWaitBaton = baton;
+
+    }
 
   }
 
@@ -208,19 +229,23 @@ Handle<Value> Messenger::Listen(const Arguments& args) {
 void Messenger::Work_BeginListen(Baton *baton) {
 
   ListenBaton* listen_baton = static_cast<ListenBaton*>(baton);
+
   listen_baton->async = new Async(listen_baton->msgr, AsyncListen);
   listen_baton->async->emitter = Persistent<Function>::New(listen_baton->callback);
 
   listen_baton->msgr->listening = true;
 
-  cerr << "Work_BeginListen: About to uv_queue_work\n";
+  // cerr << "Listen Wait is FALSE\n";
+  listen_baton->msgr->listenWait = false;
+
+  // cerr << "Work_BeginListen: About to uv_queue_work\n";
   
   int status = uv_queue_work(uv_default_loop(),
     &baton->request, Work_Listen, Work_AfterListen);
 
   assert(status == 0);
 
-}
+} 
 
 void Messenger::CloseEmitter(uv_handle_t* handle) {
 
@@ -238,21 +263,24 @@ void Messenger::Work_Listen(uv_work_t* req) {
   pn_messenger_t* receiver = baton->msgr->receiver;
   Async* async = baton->async;
 
-  sleep(5);
+
+  // May need to queue Work_Listen to it happens after subscribe
+  // This is just a hack until it actually receives a message
+  // sleep(5);
 
   while (baton->msgr->listening) {
 
-    cerr << "Work_Listen: About to block on recv\n";
+    // cerr << "Work_Listen: About to block on recv\n";
 
     pn_messenger_recv(receiver, 1024);
 
-    cerr << "Work_Listen: Leaving blocking recv (incoming = " << pn_messenger_incoming(receiver) << ", error = " << pn_messenger_error(receiver) << ")\n";
+    // cerr << "Work_Listen: Leaving blocking recv\n";
 
     while(pn_messenger_incoming(receiver)) {
 
-      cerr << "Work_Listen: Iterating over incoming messages\n";
+      // cerr << "Work_Listen: Iterating over incoming messages\n";
 
-      pn_message_t* message;
+      pn_message_t* message = pn_message();
       pn_messenger_get(receiver, message);
 
       NODE_CPROTON_MUTEX_LOCK(&async->mutex)
@@ -274,6 +302,8 @@ void Messenger::AsyncListen(uv_async_t* handle, int status) {
   HandleScope scope;
   Async* async = static_cast<Async*>(handle->data);
 
+  // cerr << "Messenger::AsyncListen: entering while loop\n";
+
   while (true) {
 
     Messages messages;
@@ -285,15 +315,19 @@ void Messenger::AsyncListen(uv_async_t* handle, int status) {
       break;
     }
 
-    Local<Value> argv[1];
+    Local<Value> argv[2];
 
     Messages::const_iterator it = messages.begin();
     Messages::const_iterator end = messages.end();
     for (int i = 0; it < end; it++, i++) {
 
-      argv[0] = String::NewSymbol("Message!");
-      TRY_CATCH_CALL(async->msgr->handle_, async->emitter, 1, argv)
-      delete *it;
+      // cerr << "Messenger::AsyncListen: iterating over vector\n";
+
+      argv[0] = String::NewSymbol("message");
+      argv[1] = MessageToJS(*it);
+      TRY_CATCH_CALL(async->msgr->handle_, async->emitter, 2, argv)
+      pn_message_free(*it);
+      // delete *it;
 
     }
 
@@ -310,7 +344,7 @@ void Messenger::Work_AfterListen(uv_work_t* req) {
   HandleScope scope;
   SendBaton* baton = static_cast<SendBaton*>(req->data);
 
-  cerr << "Work_AfterListen:  cleaning up\n";
+  // cerr << "Work_AfterListen:  cleaning up\n";
 
   delete baton;
 
@@ -348,5 +382,20 @@ void Messenger::Work_Stop(uv_work_t* req) {
 }
 
 void Messenger::Work_AfterStop(uv_work_t* req) {
+
+}
+
+Local<Object> Messenger::MessageToJS(pn_message_t* message) {
+
+  Local<Object> result(Object::New());
+
+  size_t buffsize = 1024;
+  char buffer[buffsize];
+  pn_data_t *body = pn_message_body(message);
+  pn_data_format(body, buffer, &buffsize);
+
+  result->Set(String::NewSymbol("body"), Local<Value>(String::New(buffer)));
+
+  return result;
 
 }
