@@ -1,14 +1,11 @@
-node-cproton
+node-qpid
 ============
 
-A Node.js native wrapper around the Qpid API, specifically the Proton AMPQ 1.0 C API
+A Node.js native wrapper around the Qpid API; specifically the AMPQ 1.0 Proton C Messenger API
 
-Currently expects you to already have the qpid-proton library installed on your (Linux) system:
-http://qpid.apache.org/proton/
+## Usage
 
-## What does it do so far?
-
-Currently can send and receive very basic messages to/from Azure Service Bus:
+You can use it to send and receive very basic messages to/from Azure Service Bus:
 
 ```javascript
 var m = new Messenger().subscribe(url);
@@ -31,6 +28,15 @@ m.on('error', function(err) {
 m.listen();
 ```
 
+## Installation
+
+It expects you to already have the qpid-proton library installed on your (Linux) system:
+http://qpid.apache.org/proton/
+
+## Issues
+
+Plenty, I'm sure... :-)
+
 ## Acknowledgements
 
-[node_sqlite3](https://github.com/developmentseed/node-sqlite3) has been an invaluable resource while learning how to write a native module!
+[node_sqlite3](https://github.com/developmentseed/node-sqlite3) has been an invaluable resource while learning to write a native module!
