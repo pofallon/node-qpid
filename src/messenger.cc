@@ -112,9 +112,8 @@ void Messenger::Work_AfterSubscribe(uv_work_t* req) {
     MakeCallback(baton->obj, "emit", 2, argv); */
   } else {
     // cerr << "Work_AfterSubscribe: Emitting 'subscribed' event\n";
-    Local<Value> args[] = { String::New("subscribed") };
-    // MakeCallback(baton->msgr, "emit", 1, argv);
-    EMIT_EVENT(baton->msgr->handle_, 1, args);
+    Local<Value> args[] = { String::New("subscribed"), String::New(baton->address.c_str()) };
+    EMIT_EVENT(baton->msgr->handle_, 2, args);
   }
 
   if (baton->msgr->receiveWait) {

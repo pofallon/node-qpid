@@ -25,8 +25,8 @@ var doSend = function(msgr, count) {
 
 var m = new Messenger().subscribe(url);
 
-m.on('subscribed', function() {
-  console.log("Successfully subscribed!");
+m.on('subscribed', function(url) {
+  console.log("Successfully subscribed to URL: " + url);
   doSend(m, sent);
 });
 

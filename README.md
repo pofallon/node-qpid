@@ -11,8 +11,8 @@ You can use it to send and receive very basic messages to/from Azure Service Bus
 var Messenger = require('qpid').proton.Messenger;
 var m = new Messenger().subscribe(url);
 
-m.on('subscribed', function() {
-  console.log("Successfully subscribed!");
+m.on('subscribed', function(url) {
+  console.log("Successfully subscribed to URL: " + url);
   m.send("Hello world!", function() {
     console.log("Message sent.");
   });
