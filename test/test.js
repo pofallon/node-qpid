@@ -7,7 +7,9 @@ var url = 'amqps://' + nconf.get('servicebus:issuer') + ':' + nconf.get('service
 
 // console.log(url);
 
-var max = 20;
+var max = 5;
+var sent = max;
+var received = max;
 
 var doSend = function(msgr, count) {
 
@@ -25,15 +27,19 @@ var m = new Messenger().subscribe(url);
 
 m.on('subscribed', function() {
   console.log("Successfully subscribed!");
-  doSend(m, max);
+  doSend(m, sent);
 });
 
 m.on('message', function(msg) {
   console.log("Message received: " + msg.body);
+  if (--received === 0) {
+    console.log("Trying to stop...");
+    m.stop();
+  }
 });
 
 m.on('error', function(err) {
   console.log("Node: 'error' event (" + err.message + ")");
 });
 
-m.listen();
+m.receive();

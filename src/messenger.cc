@@ -5,6 +5,7 @@
 #include "messenger.h"
 #include "async.h"
 
+
 using namespace v8;
 using namespace node;
 using namespace std;
@@ -26,7 +27,8 @@ void Messenger::Init(Handle<Object> target) {
 
   NODE_SET_PROTOTYPE_METHOD(constructor_template, "send", Send);
   NODE_SET_PROTOTYPE_METHOD(constructor_template, "subscribe", Subscribe);
-  NODE_SET_PROTOTYPE_METHOD(constructor_template, "listen", Listen);
+  NODE_SET_PROTOTYPE_METHOD(constructor_template, "receive", Receive);
+  NODE_SET_PROTOTYPE_METHOD(constructor_template, "stop", Stop);
 
   target->Set(String::NewSymbol("Messenger"),
     constructor_template->GetFunction());
@@ -39,8 +41,8 @@ Handle<Value> Messenger::New(const Arguments& args) {
   Messenger* msgr = new Messenger();
   msgr->messenger = pn_messenger(NULL);
   msgr->receiver = pn_messenger(NULL);
-  msgr->listening = false;
-  msgr->listenWait = false;
+  msgr->receiving = false;
+  msgr->receiveWait = false;
   msgr->subscriptions = 0;
 
   // Does this work?
@@ -111,11 +113,11 @@ void Messenger::Work_AfterSubscribe(uv_work_t* req) {
     EMIT_EVENT(baton->msgr->handle_, 1, args);
   }
 
-  if (baton->msgr->listenWait) {
+  if (baton->msgr->receiveWait) {
 
-    // cerr << "Listen Wait is TRUE\n";
+    // cerr << "Receive Wait is TRUE\n";
  
-    Work_BeginListen(baton->msgr->listenWaitBaton);
+    Work_BeginReceive(baton->msgr->receiveWaitBaton);
 
   }
 
@@ -149,7 +151,6 @@ void Messenger::Work_BeginSend(Baton* baton) {
 
 void Messenger::Work_Send(uv_work_t* req) {
 
-  int ret = 0;
   SendBaton* baton = static_cast<SendBaton*>(req->data);
   pn_messenger_t* messenger = baton->msgr->messenger;
 
@@ -163,12 +164,12 @@ void Messenger::Work_Send(uv_work_t* req) {
 
   assert(!pn_messenger_put(messenger, message));
   baton->tracker = pn_messenger_outgoing_tracker(messenger);
-  // cerr << "Work_Send: Put message '" << pn_data_get_string(pn_message_body(message)).start << "' (return value: " << ret << ", tracker: " << baton->tracker << ", status: " << pn_messenger_status(messenger,baton->tracker) << ", outgoing: " << pn_messenger_outgoing(messenger) << ")\n";
+  // cerr << "Work_Send: Put message '" << pn_data_get_string(pn_message_body(message)).start << "', tracker: " << baton->tracker << ", status: " << pn_messenger_status(messenger,baton->tracker) << ", outgoing: " << pn_messenger_outgoing(messenger) << ")\n";
   
   assert(!pn_messenger_start(messenger));
 
   assert(!pn_messenger_send(messenger));
-  // cerr << "Work_Send: Sent message (return value: " << ret << ", tracker: " << baton->tracker << ", status: " << pn_messenger_status(messenger,baton->tracker) << ", outgoing: " << pn_messenger_outgoing(messenger) << "\n";
+  // cerr << "Work_Send: Sent message (tracker: " << baton->tracker << ", status: " << pn_messenger_status(messenger,baton->tracker) << ", outgoing: " << pn_messenger_outgoing(messenger) << "\n";
   
   pn_messenger_stop(messenger);
 
@@ -196,27 +197,27 @@ void Messenger::Work_AfterSend(uv_work_t* req) {
 
 }
 
-Handle<Value> Messenger::Listen(const Arguments& args) {
+Handle<Value> Messenger::Receive(const Arguments& args) {
   HandleScope scope;
 
   Messenger* msgr = ObjectWrap::Unwrap<Messenger>(args.This());
 
-  // cerr << "Messenger::Listen: About to check listening (which is " << msgr->listening << ")\n";
+  // cerr << "Messenger::Receive: About to check receiving (which is " << msgr->receiving << ")\n";
 
-  if (!msgr->listening) {
+  if (!msgr->receiving) {
 
     Local<Function> emitter = Local<Function>::Cast((msgr->handle_)->Get(String::NewSymbol("emit")));
-    ListenBaton* baton = new ListenBaton(msgr, emitter);
+    ReceiveBaton* baton = new ReceiveBaton(msgr, emitter);
 
     if (msgr->subscriptions > 0) {
 
-      // cerr << "Messenger::Listen: About to BeginListen\n";
-      Work_BeginListen(baton);
+      // cerr << "Messenger::Receive: About to BeginReceive\n";
+      Work_BeginReceive(baton);
 
     } else {
 
-      msgr->listenWait = true;
-      msgr->listenWaitBaton = baton;
+      msgr->receiveWait = true;
+      msgr->receiveWaitBaton = baton;
 
     }
 
@@ -226,22 +227,22 @@ Handle<Value> Messenger::Listen(const Arguments& args) {
 
 }
 
-void Messenger::Work_BeginListen(Baton *baton) {
+void Messenger::Work_BeginReceive(Baton *baton) {
 
-  ListenBaton* listen_baton = static_cast<ListenBaton*>(baton);
+  ReceiveBaton* receive_baton = static_cast<ReceiveBaton*>(baton);
 
-  listen_baton->async = new Async(listen_baton->msgr, AsyncListen);
-  listen_baton->async->emitter = Persistent<Function>::New(listen_baton->callback);
+  receive_baton->async = new Async(receive_baton->msgr, AsyncReceive);
+  receive_baton->async->emitter = Persistent<Function>::New(receive_baton->callback);
 
-  listen_baton->msgr->listening = true;
+  receive_baton->msgr->receiving = true;
 
-  // cerr << "Listen Wait is FALSE\n";
-  listen_baton->msgr->listenWait = false;
+  // cerr << "Receive Wait is FALSE\n";
+  receive_baton->msgr->receiveWait = false;
 
-  // cerr << "Work_BeginListen: About to uv_queue_work\n";
+  // cerr << "Work_BeginReceive: About to uv_queue_work\n";
   
   int status = uv_queue_work(uv_default_loop(),
-    &baton->request, Work_Listen, Work_AfterListen);
+    &baton->request, Work_Receive, Work_AfterReceive);
 
   assert(status == 0);
 
@@ -257,28 +258,23 @@ void Messenger::CloseEmitter(uv_handle_t* handle) {
 
 }
 
-void Messenger::Work_Listen(uv_work_t* req) {
+void Messenger::Work_Receive(uv_work_t* req) {
 
-  ListenBaton* baton = static_cast<ListenBaton*>(req->data);
+  ReceiveBaton* baton = static_cast<ReceiveBaton*>(req->data);
   pn_messenger_t* receiver = baton->msgr->receiver;
   Async* async = baton->async;
 
+  while (baton->msgr->receiving) {
 
-  // May need to queue Work_Listen to it happens after subscribe
-  // This is just a hack until it actually receives a message
-  // sleep(5);
-
-  while (baton->msgr->listening) {
-
-    // cerr << "Work_Listen: About to block on recv\n";
+    // cerr << "Work_Receive: About to block on recv\n";
 
     pn_messenger_recv(receiver, 1024);
 
-    // cerr << "Work_Listen: Leaving blocking recv\n";
+    // cerr << "Work_Receive: Leaving blocking recv\n";
 
     while(pn_messenger_incoming(receiver)) {
 
-      // cerr << "Work_Listen: Iterating over incoming messages\n";
+      // cerr << "Work_Receive: Iterating over incoming messages\n";
 
       pn_message_t* message = pn_message();
       pn_messenger_get(receiver, message);
@@ -298,11 +294,11 @@ void Messenger::Work_Listen(uv_work_t* req) {
 
 }
 
-void Messenger::AsyncListen(uv_async_t* handle, int status) {
+void Messenger::AsyncReceive(uv_async_t* handle, int status) {
   HandleScope scope;
   Async* async = static_cast<Async*>(handle->data);
 
-  // cerr << "Messenger::AsyncListen: entering while loop\n";
+  // cerr << "Messenger::AsyncReceive: entering while loop\n";
 
   while (true) {
 
@@ -321,7 +317,7 @@ void Messenger::AsyncListen(uv_async_t* handle, int status) {
     Messages::const_iterator end = messages.end();
     for (int i = 0; it < end; it++, i++) {
 
-      // cerr << "Messenger::AsyncListen: iterating over vector\n";
+      // cerr << "Messenger::AsyncReceive: iterating over vector\n";
 
       argv[0] = String::NewSymbol("message");
       argv[1] = MessageToJS(*it);
@@ -339,12 +335,12 @@ void Messenger::AsyncListen(uv_async_t* handle, int status) {
 
 }
 
-void Messenger::Work_AfterListen(uv_work_t* req) {
+void Messenger::Work_AfterReceive(uv_work_t* req) {
 
   HandleScope scope;
   SendBaton* baton = static_cast<SendBaton*>(req->data);
 
-  // cerr << "Work_AfterListen:  cleaning up\n";
+  // cerr << "Work_AfterReceive:  cleaning up\n";
 
   delete baton;
 
@@ -359,7 +355,14 @@ Handle<Value> Messenger::Stop(const Arguments& args) {
 
   Baton* baton = new Baton(msgr, callback);
 
-  Work_BeginStop(baton);
+  if (baton->msgr->receiving || baton->msgr->receiveWait) {
+
+    baton->msgr->receiving = false;
+    baton->msgr->receiveWait = false;
+
+    Work_BeginStop(baton);
+
+  }
 
   return Undefined();
 
@@ -376,8 +379,14 @@ void Messenger::Work_BeginStop(Baton *baton) {
 
 void Messenger::Work_Stop(uv_work_t* req) {
 
-  // Set some flag to indicate should no longer listen
-  // Call driver "wakeup" function to stop blocking messenger receive function call
+  Baton* baton = static_cast<Baton*>(req->data);
+  pn_messenger_t *receiver = baton->msgr->receiver;
+
+  // ** This doesn't work
+  // pn_messenger_stop(receiver);
+ 
+  // ** This won't compile 
+  pn_driver_wakeup(receiver->driver);
 
 }
 

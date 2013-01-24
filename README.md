@@ -8,6 +8,7 @@ A Node.js native wrapper around the Qpid API; specifically the AMPQ 1.0 Proton C
 You can use it to send and receive very basic messages to/from Azure Service Bus:
 
 ```javascript
+var Messenger = require('qpid').proton.Messenger;
 var m = new Messenger().subscribe(url);
 
 m.on('subscribed', function() {
@@ -25,7 +26,7 @@ m.on('error', function(err) {
   console.log("Node: 'error' event (" + err.message + ")");
 });
 
-m.listen();
+m.receive();
 ```
 
 ## Installation

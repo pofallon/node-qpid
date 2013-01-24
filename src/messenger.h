@@ -9,7 +9,6 @@
 #include "proton/message.h"
 #include "proton/messenger.h"
 
-// #include "async.h"
 #include "macros.h"
 #include "threading.h"
 
@@ -68,11 +67,11 @@ class Messenger : public node::ObjectWrap {
 
   struct Async;
 
-  struct ListenBaton : Baton {
+  struct ReceiveBaton : Baton {
 
     Async* async;
 
-    ListenBaton(Messenger* msgr_, Handle<Function> cb_) : 
+    ReceiveBaton(Messenger* msgr_, Handle<Function> cb_) : 
       Baton(msgr_, cb_) {} 
 
   };
@@ -111,12 +110,11 @@ class Messenger : public node::ObjectWrap {
 
   WORK_DEFINITION(Send)
   WORK_DEFINITION(Subscribe)
-  WORK_DEFINITION(Start)
   WORK_DEFINITION(Stop)
   WORK_DEFINITION(Put)
-  WORK_DEFINITION(Listen)
+  WORK_DEFINITION(Receive)
 
-  static void AsyncListen(uv_async_t* handle, int status);
+  static void AsyncReceive(uv_async_t* handle, int status);
   static void CloseEmitter(uv_handle_t* handle);
   static Local<Object> MessageToJS(pn_message_t* message);
 
@@ -124,9 +122,9 @@ class Messenger : public node::ObjectWrap {
   std::string address;
   pn_messenger_t * messenger;
   pn_messenger_t * receiver;
-  bool listening;
-  bool listenWait;
-  ListenBaton * listenWaitBaton;
+  bool receiving;
+  bool receiveWait;
+  ReceiveBaton * receiveWaitBaton;
   int subscriptions;
 };
 
