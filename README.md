@@ -25,7 +25,7 @@ m.on('message', function(msg) {
   if (++count === 5) {
     // Stop listening after 5 messages
     m.stop();
-  };
+  }
 });
 
 m.on('error', function(err) {
