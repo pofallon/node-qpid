@@ -33,13 +33,13 @@ m.on('subscribed', function() {
 m.on('message', function(msg) {
   console.log("Message received: " + msg.body);
   if (--received === 0) {
-    console.log("Trying to stop...");
+    console.log("Stopping...");
     m.stop();
   }
 });
 
 m.on('error', function(err) {
-  console.log("Node: 'error' event (" + err.message + ")");
+  console.log("Error: " + err.message);
 });
 
 m.receive();

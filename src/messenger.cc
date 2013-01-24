@@ -41,6 +41,10 @@ Handle<Value> Messenger::New(const Arguments& args) {
   Messenger* msgr = new Messenger();
   msgr->messenger = pn_messenger(NULL);
   msgr->receiver = pn_messenger(NULL);
+
+  // How long to block while receiving.  Should surface this as an option
+  pn_messenger_set_timeout(msgr->receiver, 50);
+
   msgr->receiving = false;
   msgr->receiveWait = false;
   msgr->subscriptions = 0;
@@ -380,13 +384,8 @@ void Messenger::Work_BeginStop(Baton *baton) {
 void Messenger::Work_Stop(uv_work_t* req) {
 
   Baton* baton = static_cast<Baton*>(req->data);
-  pn_messenger_t *receiver = baton->msgr->receiver;
 
-  // ** This doesn't work
-  // pn_messenger_stop(receiver);
- 
-  // ** This won't compile 
-  // pn_driver_wakeup(receiver->driver);
+  baton->msgr->receiving = false;
 
 }
 
