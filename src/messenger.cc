@@ -386,7 +386,7 @@ void Messenger::Work_Stop(uv_work_t* req) {
   // pn_messenger_stop(receiver);
  
   // ** This won't compile 
-  pn_driver_wakeup(receiver->driver);
+  // pn_driver_wakeup(receiver->driver);
 
 }
 
