@@ -7,7 +7,7 @@ var url = 'amqps://' + nconf.get('servicebus:issuer') + ':' + nconf.get('service
 
 // console.log(url);
 
-var max = 5;
+var max = 10;
 var sent = max;
 var received = max;
 

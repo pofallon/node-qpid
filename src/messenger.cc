@@ -40,6 +40,10 @@ Handle<Value> Messenger::New(const Arguments& args) {
 
   Messenger* msgr = new Messenger();
   msgr->messenger = pn_messenger(NULL);
+
+  // Temporary fix 
+  pn_messenger_set_outgoing_window(msgr->messenger, 1);
+
   msgr->receiver = pn_messenger(NULL);
 
   // How long to block while receiving.  Should surface this as an option
@@ -174,7 +178,7 @@ void Messenger::Work_Send(uv_work_t* req) {
   assert(!pn_messenger_send(messenger));
   // cerr << "Work_Send: Sent message (tracker: " << baton->tracker << ", status: " << pn_messenger_status(messenger,baton->tracker) << ", outgoing: " << pn_messenger_outgoing(messenger) << "\n";
   
-  pn_messenger_stop(messenger);
+  // pn_messenger_stop(messenger);
 
   pn_message_free(message);
 
