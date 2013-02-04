@@ -3,7 +3,9 @@ var Messenger = require('..').proton.Messenger;
 
 nconf.file(process.env.HOME + '/.cproton/config.json');
 
-var url = 'amqps://' + nconf.get('servicebus:issuer') + ':' + nconf.get('servicebus:key') + '@' + nconf.get('servicebus:namespace') + '.servicebus.windows.net/' + nconf.get('servicebus:entity');
+// var url = 'amqps://' + nconf.get('servicebus:issuer') + ':' + nconf.get('servicebus:key') + '@' + nconf.get('servicebus:namespace') + '.servicebus.windows.net/' + nconf.get('servicebus:entity');
+
+var url = "amqp://localhost:5672/queue1";
 
 // console.log(url);
 
