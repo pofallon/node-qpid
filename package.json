@@ -1,6 +1,6 @@
 {
   "name": "qpid",
-  "description": "",
+  "description": "A native wrapper around Apache Qpid, specifically the AMQP 1.0 Proton C API",
   "keywords": ["messaging", "amqp", "rabbitmq", "activemq", "azure", "servicebus"],
   "author": "Paul O'Fallon <paul@ofallonfamily.com>",
   "homepage": "https://github.com/pofallon/node-qpid",

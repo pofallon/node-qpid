@@ -1,7 +1,7 @@
 node-qpid
 ============
 
-A Node.js native wrapper around the Qpid API; specifically the AMPQ 1.0 Proton C Messenger API
+A Node.js native wrapper around Apache Qpid, specifically the AMQP 1.0 Proton C API
 
 ## Usage
 
@@ -37,21 +37,20 @@ m.subscribe(address).receive();
 ```
 
 The module has been preliminarily tested against:
-* Windows Azure Service Bus
-* ActiveMQ 5.8 nightly builds w/ AMQP 1.0 support
-* RabbitMQ with the AMQP 1.0 Plugin
+* [Windows Azure Service Bus](http://www.windowsazure.com/en-us/develop/net/how-to-guides/service-bus-amqp-overview/)
+* [ActiveMQ 5.8 snapshot builds](https://repository.apache.org/content/repositories/snapshots/org/apache/activemq/apache-activemq/5.8-SNAPSHOT/) w/ AMQP 1.0 support
+* RabbitMQ with the [AMQP 1.0 Plugin](https://github.com/rabbitmq/rabbitmq-amqp1.0)
 
 Peer-to-peer support is a work in progress
 
 ## Installation
 
-It expects you to already have the qpid-proton library installed on your (Linux) system:
-http://qpid.apache.org/proton/
+It expects you to already have version 0.3 of the [qpid-proton library](http://qpid.apache.org/proton/) installed on your (Linux) system.  Windows support will follow when version 0.4 of proton is released.
 
 ## Issues
 
-Plenty, I'm sure... :-)
+It's still rough around the edges and not ready for prime time, but pull requests are welcomed!
 
 ## Acknowledgements
 
-[node_sqlite3](https://github.com/developmentseed/node-sqlite3) has been an invaluable resource while learning to write a native module!
+[node_sqlite3](https://github.com/developmentseed/node-sqlite3) has been an invaluable resource while writing this native module!
