@@ -5,31 +5,43 @@ A Node.js native wrapper around the Qpid API; specifically the AMPQ 1.0 Proton C
 
 ## Usage
 
-You can use it to send and receive very basic messages to/from Azure Service Bus:
+You can use it to exchange messages with AMQP 1.0 brokers:
 
 ```javascript
+// Sending
 var Messenger = require('qpid').proton.Messenger;
-var m = new Messenger().subscribe(url);
+var m = new Messenger();
+
+m.send({address: address, body: message}, function(err) {
+  if (err) {
+    console.log("Error sending message: " + err.message);
+  }
+});
+
+```
+
+```javascript
+// Receiving
+var Messenger = require('qpid').proton.Messenger;
+var m = new Messenger();
 
 m.on('subscribed', function(url) {
-  console.log("Successfully subscribed to URL: " + url);
-  m.send("Hello world!", function() {
-    console.log("Message sent.");
-  });
+  console.log("Subscribed to " + url);
 });
 
-m.on('message', function(msg) {
-  console.log("Message received: " + msg.body);
-  // Stop after receiving one message
-  m.stop();
+m.on('message', function(message) {
+  console.log(message.body);
 });
 
-m.on('error', function(err) {
-  console.log("Error: " + err.message);
-});
-
-m.receive();
+m.subscribe(address).receive();
 ```
+
+The module has been preliminarily tested against:
+* Windows Azure Service Bus
+* ActiveMQ 5.8 nightly builds w/ AMQP 1.0 support
+* RabbitMQ with the AMQP 1.0 Plugin
+
+Peer-to-peer support is a work in progress
 
 ## Installation
 

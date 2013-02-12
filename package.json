@@ -1,0 +1,28 @@
+{
+  "name": "qpid",
+  "description": "",
+  "keywords": ["messaging", "amqp", "rabbitmq", "activemq", "azure", "servicebus"],
+  "author": "Paul O'Fallon <paul@ofallonfamily.com>",
+  "homepage": "https://github.com/pofallon/node-qpid",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pofallon/node-qpid.git"
+  },
+  "devDependencies": {
+    "optimist": "*"
+  },
+  "engine": ">= 0.6.13 && < 0.9.0",
+  "version": "0.0.1",
+  "files": [
+    "index.js",
+    "binding.gyp",
+    "lib",
+    "src",
+    "package.json",
+    "README.md",
+    "test",
+    "examples"
+  ],
+  "main": "index",
+  "license": "MIT"
+}

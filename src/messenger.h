@@ -57,11 +57,11 @@ class Messenger : public node::ObjectWrap {
 
   struct SendBaton : Baton {
 
-    std::string msgtext;
+    pn_message_t * msg;
     pn_tracker_t tracker;
 
-    SendBaton(Messenger* msgr_, Handle<Function> cb_, const char* msgtext_) :
-      Baton(msgr_, cb_), msgtext(msgtext_) {}
+    SendBaton(Messenger* msgr_, Handle<Function> cb_, pn_message_t * msg_) :
+      Baton(msgr_, cb_), msg(msg_) {}
 
   };
 
@@ -106,7 +106,10 @@ class Messenger : public node::ObjectWrap {
 
  private:
   Messenger();
-  ~Messenger();
+  ~Messenger() {
+    pn_messenger_stop(messenger);
+    pn_messenger_stop(receiver);
+  }
 
   WORK_DEFINITION(Send)
   WORK_DEFINITION(Subscribe)
@@ -117,6 +120,7 @@ class Messenger : public node::ObjectWrap {
   static void AsyncReceive(uv_async_t* handle, int status);
   static void CloseEmitter(uv_handle_t* handle);
   static Local<Object> MessageToJS(pn_message_t* message);
+  static pn_message_t * JSToMessage(Local<Object>);
 
   static Handle<Value> New(const Arguments& args);
   std::string address;

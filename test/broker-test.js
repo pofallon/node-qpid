@@ -1,15 +1,9 @@
 var nconf = require('nconf');
 var Messenger = require('..').proton.Messenger;
 
-nconf.file(process.env.HOME + '/.cproton/config.json');
-
-// var url = 'amqps://' + nconf.get('servicebus:issuer') + ':' + nconf.get('servicebus:key') + '@' + nconf.get('servicebus:namespace') + '.servicebus.windows.net/' + nconf.get('servicebus:entity');
-
 var url = "amqp://localhost:5672/queue1";
 
-// console.log(url);
-
-var max = 10;
+var max = 5;
 var sent = max;
 var received = max;
 
@@ -17,9 +11,13 @@ var doSend = function(msgr, count) {
 
   if (count > 0) {
     var message = "Hello " + Date.now();
-    msgr.send(message, function() {
-      console.log("Message sent: " + message);
-      doSend(msgr, --count);
+    msgr.send({address: url, body: message}, function(err) {
+      if (err) {
+        console.log("Error! + " + err.getMessage());
+      } else {
+        console.log("Message sent: " + message);
+        doSend(msgr, --count);
+      }
     });
   }
 

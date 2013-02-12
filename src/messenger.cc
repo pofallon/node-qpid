@@ -12,7 +12,7 @@ using namespace std;
 
 Messenger::Messenger() { };
 
-Messenger::~Messenger() { };
+// Messenger::~Messenger() { };
 
 Persistent<FunctionTemplate> Messenger::constructor_template;
 
@@ -39,12 +39,17 @@ Handle<Value> Messenger::New(const Arguments& args) {
   HandleScope scope;
 
   Messenger* msgr = new Messenger();
-  msgr->messenger = pn_messenger(NULL);
+
+  pn_messenger_t* messenger = pn_messenger(NULL);
+  pn_messenger_start(messenger);
+  msgr->messenger = messenger;
 
   // Temporary fix 
   pn_messenger_set_outgoing_window(msgr->messenger, 1);
 
-  msgr->receiver = pn_messenger(NULL);
+  pn_messenger_t* receiver = pn_messenger(NULL);
+  pn_messenger_start(receiver);
+  msgr->receiver = receiver;
 
   // How long to block while receiving.  Should surface this as an option
   pn_messenger_set_timeout(msgr->receiver, 50);
@@ -52,12 +57,6 @@ Handle<Value> Messenger::New(const Arguments& args) {
   msgr->receiving = false;
   msgr->receiveWait = false;
   msgr->subscriptions = 0;
-
-  // Does this work?
-  // (not like this, no)
-  if (!args[0]->IsUndefined()) {
-    Subscribe(args);
-  }
 
   msgr->Wrap(args.This());
 
@@ -69,17 +68,13 @@ Handle<Value> Messenger::Subscribe(const Arguments& args) {
 
   Messenger* msgr = ObjectWrap::Unwrap<Messenger>(args.This());
 
-  REQUIRE_ARGUMENT_STRING(0, address);
+  REQUIRE_ARGUMENT_STRING(0, addr);
   OPTIONAL_ARGUMENT_FUNCTION(1, callback);
 
-  // This assumes that a messenger can only subscribe to one address at a time
-  // (which may not be true)
-  msgr->address = *address;
+  msgr->address = *addr;
 
-  SubscribeBaton* baton = new SubscribeBaton(msgr, callback, *address);
+  SubscribeBaton* baton = new SubscribeBaton(msgr, callback, *addr);
   
-  // cerr << "Messenger::Subscribe: Subscribing to " << baton->address << "\n";
-
   Work_BeginSubscribe(baton);
 
   return args.This();
@@ -98,7 +93,6 @@ void Messenger::Work_Subscribe(uv_work_t* req) {
 
   SubscribeBaton* baton = static_cast<SubscribeBaton*>(req->data);
 
-  // cerr << "Work_Subscribe: Subscribing to " << baton->address << "\n";
   pn_messenger_subscribe(baton->msgr->receiver, baton->address.c_str());
 
 }
@@ -115,15 +109,21 @@ void Messenger::Work_AfterSubscribe(uv_work_t* req) {
     Local<Value> argv[2] = { Local<Value>::New(String::New("error")), err };
     MakeCallback(baton->obj, "emit", 2, argv); */
   } else {
-    // cerr << "Work_AfterSubscribe: Emitting 'subscribed' event\n";
-    Local<Value> args[] = { String::New("subscribed"), String::New(baton->address.c_str()) };
-    EMIT_EVENT(baton->msgr->handle_, 2, args);
+    if (!baton->callback.IsEmpty() && baton->callback->IsFunction()) {
+      
+      Local<Value> args[] = { Local<Value>::New(Null()), String::New(baton->address.c_str()) }; 
+      baton->callback->Call(Context::GetCurrent()->Global(), 2, args);
+      
+    } else {
+
+      Local<Value> args[] = { String::New("subscribed"), String::New(baton->address.c_str()) };
+      EMIT_EVENT(baton->msgr->handle_, 2, args);
+
+    }
   }
 
   if (baton->msgr->receiveWait) {
 
-    // cerr << "Receive Wait is TRUE\n";
- 
     Work_BeginReceive(baton->msgr->receiveWaitBaton);
 
   }
@@ -137,10 +137,12 @@ Handle<Value> Messenger::Send(const Arguments& args) {
   
   Messenger* msgr = ObjectWrap::Unwrap<Messenger>(args.This());
 
-  REQUIRE_ARGUMENT_STRING(0, msg);
+  REQUIRE_ARGUMENT_OBJECT(0, obj);
   OPTIONAL_ARGUMENT_FUNCTION(1, callback);
 
-  SendBaton* baton = new SendBaton(msgr, callback, *msg);
+  pn_message_t* msg = JSToMessage(obj);
+
+  SendBaton* baton = new SendBaton(msgr, callback, msg);
   
   Work_BeginSend(baton);
 
@@ -160,30 +162,15 @@ void Messenger::Work_Send(uv_work_t* req) {
 
   SendBaton* baton = static_cast<SendBaton*>(req->data);
   pn_messenger_t* messenger = baton->msgr->messenger;
-
-  pn_message_t* message = pn_message();
-
-  // For now, it defaults to sending a message to the (one) subscribed address
-  pn_message_set_address(message, baton->msgr->address.c_str());
-  pn_data_t* body = pn_message_body(message);
-
-  pn_data_put_string(body, pn_bytes(baton->msgtext.size(), const_cast<char*>(baton->msgtext.c_str())));
+  pn_message_t* message = baton->msg;
 
   assert(!pn_messenger_put(messenger, message));
   baton->tracker = pn_messenger_outgoing_tracker(messenger);
-  // cerr << "Work_Send: Put message '" << pn_data_get_string(pn_message_body(message)).start << "', tracker: " << baton->tracker << ", status: " << pn_messenger_status(messenger,baton->tracker) << ", outgoing: " << pn_messenger_outgoing(messenger) << ")\n";
-  
-  assert(!pn_messenger_start(messenger));
 
   assert(!pn_messenger_send(messenger));
-  // cerr << "Work_Send: Sent message (tracker: " << baton->tracker << ", status: " << pn_messenger_status(messenger,baton->tracker) << ", outgoing: " << pn_messenger_outgoing(messenger) << "\n";
-  
-  // pn_messenger_stop(messenger);
 
   pn_message_free(message);
 
-  // Where to put this?!?
-  // pn_messenger_free(messenger);
 }
 
 void Messenger::Work_AfterSend(uv_work_t* req) {
@@ -195,7 +182,6 @@ void Messenger::Work_AfterSend(uv_work_t* req) {
     Local<Value> argv[] = { err };
     baton->callback->Call(Context::GetCurrent()->Global(), 1, argv);
   } else {
-    // cerr << "Work_AfterSend: Invoking callback on success (tracker: " << baton->tracker << ")\n";
     Local<Value> argv[] = {};
     baton->callback->Call(Context::GetCurrent()->Global(), 0, argv);
   }
@@ -209,8 +195,6 @@ Handle<Value> Messenger::Receive(const Arguments& args) {
 
   Messenger* msgr = ObjectWrap::Unwrap<Messenger>(args.This());
 
-  // cerr << "Messenger::Receive: About to check receiving (which is " << msgr->receiving << ")\n";
-
   if (!msgr->receiving) {
 
     Local<Function> emitter = Local<Function>::Cast((msgr->handle_)->Get(String::NewSymbol("emit")));
@@ -218,7 +202,6 @@ Handle<Value> Messenger::Receive(const Arguments& args) {
 
     if (msgr->subscriptions > 0) {
 
-      // cerr << "Messenger::Receive: About to BeginReceive\n";
       Work_BeginReceive(baton);
 
     } else {
@@ -243,11 +226,8 @@ void Messenger::Work_BeginReceive(Baton *baton) {
 
   receive_baton->msgr->receiving = true;
 
-  // cerr << "Receive Wait is FALSE\n";
   receive_baton->msgr->receiveWait = false;
 
-  // cerr << "Work_BeginReceive: About to uv_queue_work\n";
-  
   int status = uv_queue_work(uv_default_loop(),
     &baton->request, Work_Receive, Work_AfterReceive);
 
@@ -273,15 +253,9 @@ void Messenger::Work_Receive(uv_work_t* req) {
 
   while (baton->msgr->receiving) {
 
-    // cerr << "Work_Receive: About to block on recv\n";
-
     pn_messenger_recv(receiver, 1024);
 
-    // cerr << "Work_Receive: Leaving blocking recv\n";
-
     while(pn_messenger_incoming(receiver)) {
-
-      // cerr << "Work_Receive: Iterating over incoming messages\n";
 
       pn_message_t* message = pn_message();
       pn_messenger_get(receiver, message);
@@ -305,8 +279,6 @@ void Messenger::AsyncReceive(uv_async_t* handle, int status) {
   HandleScope scope;
   Async* async = static_cast<Async*>(handle->data);
 
-  // cerr << "Messenger::AsyncReceive: entering while loop\n";
-
   while (true) {
 
     Messages messages;
@@ -323,8 +295,6 @@ void Messenger::AsyncReceive(uv_async_t* handle, int status) {
     Messages::const_iterator it = messages.begin();
     Messages::const_iterator end = messages.end();
     for (int i = 0; it < end; it++, i++) {
-
-      // cerr << "Messenger::AsyncReceive: iterating over vector\n";
 
       argv[0] = String::NewSymbol("message");
       argv[1] = MessageToJS(*it);
@@ -346,8 +316,6 @@ void Messenger::Work_AfterReceive(uv_work_t* req) {
 
   HandleScope scope;
   SendBaton* baton = static_cast<SendBaton*>(req->data);
-
-  // cerr << "Work_AfterReceive:  cleaning up\n";
 
   delete baton;
 
@@ -393,6 +361,34 @@ void Messenger::Work_Stop(uv_work_t* req) {
 }
 
 void Messenger::Work_AfterStop(uv_work_t* req) {
+
+}
+
+pn_message_t* Messenger::JSToMessage(Local<Object> obj) {
+
+  // TODO:  Should have a pool of these and re-use them
+  pn_message_t* message = pn_message();
+
+  if (obj->Has(String::New("address"))) {
+
+    String::Utf8Value addr(obj->Get(String::New("address")));
+    char * str_addr = *addr;
+
+    pn_message_set_address(message, str_addr);
+
+  }
+
+  if (obj->Has(String::New("body"))) {
+
+    String::Utf8Value body(obj->Get(String::New("body")));
+    char * str_body = *body;
+
+    pn_data_t* msg_body = pn_message_body(message);
+    pn_data_put_string(msg_body, pn_bytes(body.length(), str_body));
+
+  }
+
+  return(message);
 
 }
 

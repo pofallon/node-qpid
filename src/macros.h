@@ -32,6 +32,13 @@
     }                                                                          \
     Local<Function> var = Local<Function>::Cast(args[i]);
 
+#define REQUIRE_ARGUMENT_OBJECT(i, var)						\
+    if (args.Length() <= (i) || !args[i]->IsObject()) {				\
+        return ThrowException(Exception::TypeError(				\
+            String::New("Argument " #i " must be an object"))			\
+        );									\
+    }										\
+    Local<Object> var = args[i]->ToObject();				\
 
 #define REQUIRE_ARGUMENT_STRING(i, var)                                        \
     if (args.Length() <= (i) || !args[i]->IsString()) {                        \
@@ -41,6 +48,9 @@
     }                                                                          \
     String::Utf8Value var(args[i]->ToString());
 
+/* Would really like to know how to write this... :-(
+#define OPTIONAL_ARGUMENT_STRING(i, var)					\
+*/
 
 #define OPTIONAL_ARGUMENT_FUNCTION(i, var)                                     \
     Local<Function> var;                                                       \
