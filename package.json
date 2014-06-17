@@ -11,7 +11,7 @@
   "devDependencies": {
     "optimist": "*"
   },
-  "engine": ">= 0.6.13 && < 0.9.0",
+  "engine": ">= 0.6.13 && < 0.11.0",
   "version": "0.0.1",
   "files": [
     "index.js",
