@@ -83,7 +83,7 @@ Handle<Value> Messenger::Subscribe(const Arguments& args) {
 
 void Messenger::Work_BeginSubscribe(Baton* baton) {
   int status = uv_queue_work(uv_default_loop(),
-    &baton->request, Work_Subscribe, Work_AfterSubscribe);
+    &baton->request, Work_Subscribe, (uv_after_work_cb)Work_AfterSubscribe);
 
   assert(status == 0);
 
@@ -152,7 +152,7 @@ Handle<Value> Messenger::Send(const Arguments& args) {
 
 void Messenger::Work_BeginSend(Baton* baton) {
   int status = uv_queue_work(uv_default_loop(),
-    &baton->request, Work_Send, Work_AfterSend);
+    &baton->request, Work_Send, (uv_after_work_cb)Work_AfterSend);
 
   assert(status == 0);
 
@@ -229,7 +229,7 @@ void Messenger::Work_BeginReceive(Baton *baton) {
   receive_baton->msgr->receiveWait = false;
 
   int status = uv_queue_work(uv_default_loop(),
-    &baton->request, Work_Receive, Work_AfterReceive);
+    &baton->request, Work_Receive, (uv_after_work_cb)Work_AfterReceive);
 
   assert(status == 0);
 
@@ -346,7 +346,7 @@ Handle<Value> Messenger::Stop(const Arguments& args) {
 void Messenger::Work_BeginStop(Baton *baton) {
 
   int status = uv_queue_work(uv_default_loop(),
-    &baton->request, Work_Stop, Work_AfterStop);
+    &baton->request, Work_Stop, (uv_after_work_cb)Work_AfterStop);
 
   assert(status == 0);
 
