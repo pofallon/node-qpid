@@ -41,11 +41,9 @@ The module has been preliminarily tested against:
 * [ActiveMQ 5.8 snapshot builds](https://repository.apache.org/content/repositories/snapshots/org/apache/activemq/apache-activemq/5.8-SNAPSHOT/) w/ AMQP 1.0 support
 * RabbitMQ with the [AMQP 1.0 Plugin](https://github.com/rabbitmq/rabbitmq-amqp1.0)
 
-Peer-to-peer support is a work in progress
-
 ## Installation
 
-It expects you to already have version 0.3 of the [qpid-proton library](http://qpid.apache.org/proton/) installed on your (Linux) system.  Windows support will follow when version 0.4 of proton is released.
+It expects you to already have version 0.3 of the [qpid-proton library](http://qpid.apache.org/proton/) installed on your (Linux) system.
 
 
 ## Issues
