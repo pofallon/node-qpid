@@ -47,6 +47,7 @@ Peer-to-peer support is a work in progress
 
 It expects you to already have version 0.3 of the [qpid-proton library](http://qpid.apache.org/proton/) installed on your (Linux) system.  Windows support will follow when version 0.4 of proton is released.
 
+
 ## Issues
 
 It's still rough around the edges and not ready for prime time, but pull requests are welcomed!
