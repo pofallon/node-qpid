@@ -167,7 +167,7 @@ void Messenger::Work_Send(uv_work_t* req) {
   assert(!pn_messenger_put(messenger, message));
   baton->tracker = pn_messenger_outgoing_tracker(messenger);
 
-  assert(!pn_messenger_send(messenger));
+  assert(!pn_messenger_send(messenger, -1));
 
   pn_message_free(message);
 
@@ -182,7 +182,7 @@ void Messenger::Work_AfterSend(uv_work_t* req) {
     Local<Value> argv[] = { err };
     baton->callback->Call(Context::GetCurrent()->Global(), 1, argv);
   } else {
-    Local<Value> argv[] = {};
+    Local<Value> argv[1];
     baton->callback->Call(Context::GetCurrent()->Global(), 0, argv);
   }
 
@@ -397,7 +397,7 @@ Local<Object> Messenger::MessageToJS(pn_message_t* message) {
   Local<Object> result(Object::New());
 
   size_t buffsize = 1024;
-  char buffer[buffsize];
+  char buffer[1024];
   pn_data_t *body = pn_message_body(message);
   pn_data_format(body, buffer, &buffsize);
 
