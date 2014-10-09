@@ -2,12 +2,21 @@
   "targets": [
     {
       "target_name": "cproton",
+      "type": "loadable_module",
       "sources": [ "src/cproton.cc", "src/messenger.cc" ],
       "link_settings" : {
         "libraries": [ '-lqpid-proton' ],
-        "library_dirs": [ 'C:/dev/tools/qpid/qpid-proton-0.7/build/proton-c/Release' ]
+        "library_dirs": [ '/usr/local/lib' ]
       },
-      "include_dirs": [ 'c:/dev/tools/qpid/qpid-proton-0.7/proton-c/include' ]
+      "include_dirs": [ 
+        '/usr/local/include/proton', 
+        '/usr/include/nodejs/src',
+        '/usr/include/nodejs/deps/uv/include/',
+        '/usr/include/nodejs/deps/v8/include/',
+      ],
+      "cflags": [
+        "-fPIC"
+      ]
     }
   ]
 }
