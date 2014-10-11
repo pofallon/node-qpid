@@ -48,6 +48,7 @@ Handle<Value> Messenger::New(const Arguments& args) {
   pn_messenger_set_outgoing_window(msgr->messenger, 1);
 
   pn_messenger_t* receiver = pn_messenger(NULL);
+  pn_messenger_set_incoming_window(receiver, 1);
   pn_messenger_start(receiver);
   msgr->receiver = receiver;
 
@@ -265,7 +266,9 @@ void Messenger::Work_Receive(uv_work_t* req) {
       NODE_CPROTON_MUTEX_UNLOCK(&async->mutex)
 
       uv_async_send(&async->watcher);
-
+      
+      pn_tracker_t tracker = pn_messenger_incoming_tracker(receiver);
+      pn_messenger_accept(receiver, tracker, PN_CUMULATIVE);
     } 
 
   }
