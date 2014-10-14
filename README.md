@@ -74,10 +74,6 @@ At this point, you are ready to use the module.
 A side note, reqarding the addition of "ppa:qpid/released" to the apt repository.  This is the simplest way to get and install 
 qpid-proton.  Building the library from scratch requires several steps and other dependencies.
 
-[qpid-proton library](http://qpid.apache.org/proton/) installed on your (Linux) system.
-
-your (Linux) system.
-
 ## Issues
 
 It's still rough around the edges and not ready for prime time, but pull requests are welcomed!
