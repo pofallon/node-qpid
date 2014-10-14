@@ -54,7 +54,6 @@ For Ubuntu 14.04, you can set up all the necessary requirements as follows:
 # sudo add-apt-repository ppa:qpid/released
 # sudo apt-get update
 # sudo apt-get install libqpid-proton2-dev
-# sudo apt-get install nodejs-legacy nodejs-dev
 # sudo apt-get install build-essential git
 # sudo apt-get install nodejs-legacy nodejs-dev nodejs npm
 ```
