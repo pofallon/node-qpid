@@ -1,7 +1,7 @@
 node-qpid
 ============
 
-A Node.js native wrapper around Apache Qpid, specifically the AMQP 1.0 Proton C API
+A Node.js native wrapper around Apache Qpid, specifically the AMQP 1.0 Proton C API.
 
 ## Usage
 
@@ -43,8 +43,40 @@ The module has been preliminarily tested against:
 
 ## Installation
 
-It expects you to already have version 0.3 of the [qpid-proton library](http://qpid.apache.org/proton/) installed on your (Linux) system.
+This module expects that you have the following installed on your system:
+* [qpid-proton library](http://qpid.apache.org/proton/) version 0.7
+* nodejs-dev
+* necessary build tools
 
+For Ubuntu 14.04, you can set up all the necessary requirements as follows:
+
+```bash
+# sudo add-apt-repository ppa:qpid/released
+# sudo apt-get update
+# sudo apt-get install libqpid-proton2-dev
+# sudo apt-get install nodejs-legacy nodejs-dev
+# sudo apt-get install build-essential git
+# sudo apt-get install nodejs-legacy nodejs-dev nodejs npm
+```
+
+Until this module is committed back to main branch and published as an npm module, to build and install it, do the following:
+
+```bash
+# mkdir tmp
+# cd tmp
+# git clone https://github.com/jmspring/node-qpid.git
+# cd node-qpid
+# sudo npm install -g .
+```
+
+At this point, you are ready to use the module.
+
+A side note, reqarding the addition of "ppa:qpid/released" to the apt repository.  This is the simplest way to get and install 
+qpid-proton.  Building the library from scratch requires several steps and other dependencies.
+
+[qpid-proton library](http://qpid.apache.org/proton/) installed on your (Linux) system.
+
+your (Linux) system.
 
 ## Issues
 
