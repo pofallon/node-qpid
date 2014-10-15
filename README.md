@@ -48,12 +48,17 @@ This module expects that you have the following installed on your system:
 * nodejs-dev
 * necessary build tools
 
+Building qpid-proton is fairly involved, so to ease that burden, grabbing and installing 
+the binaries from debian sid is a faster (and probably less error prone) approach.  There
+is a PPA for qpid/released, however the libraries there are not compiled against OpenSSL 
+and SSL support is needed for connecting to Service Bus using AMQP.
+
 For Ubuntu 14.04, you can set up all the necessary requirements as follows:
 
 ```bash
-# sudo add-apt-repository ppa:qpid/released
-# sudo apt-get update
-# sudo apt-get install libqpid-proton2-dev
+# wget http://ftp.us.debian.org/debian/pool/main/q/qpid-proton/libqpid-proton2-dev_0.7-1_amd64.deb
+# wget http://ftp.us.debian.org/debian/pool/main/q/qpid-proton/libqpid-proton2_0.7-1_amd64.deb
+# sudo dpkg -i libqpid-proton2-dev_0.7-1_amd64.deb libqpid-proton2_0.7-1_amd64.deb
 # sudo apt-get install build-essential git
 # sudo apt-get install nodejs-legacy nodejs-dev nodejs npm
 ```
@@ -70,10 +75,9 @@ Until this module is committed back to main branch and published as an npm modul
 
 At this point, you are ready to use the module.
 
-A side note, reqarding the addition of "ppa:qpid/released" to the apt repository.  This is the simplest way to get and install 
-qpid-proton.  Building the library from scratch requires several steps and other dependencies.
-
 ## Issues
+
+Grabbing binaries directly from debian sid for Ubuntu is a little silly, but for now it works.
 
 It's still rough around the edges and not ready for prime time, but pull requests are welcomed!
 
