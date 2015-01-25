@@ -167,7 +167,7 @@ void Messenger::Work_Send(uv_work_t* req) {
   assert(!pn_messenger_put(messenger, message));
   baton->tracker = pn_messenger_outgoing_tracker(messenger);
 
-  assert(!pn_messenger_send(messenger));
+  assert(!pn_messenger_send(messenger,1));
 
   pn_message_free(message);
 
