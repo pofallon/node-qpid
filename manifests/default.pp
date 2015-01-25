@@ -50,11 +50,14 @@ class setup_node_qpid {
 }
 
 class test_node_qpid {
-	# class { 'rabbitmq':
-	# } ->
-	# rabbitmq_plugin {'rabbitmq_amqp1_0':
-	# 	ensure => present
-	# }
+	class { 'rabbitmq':
+		config_variables => {
+			'loopback_users' => '[]'
+		}
+	} ->
+	rabbitmq_plugin {'rabbitmq_amqp1_0': 
+		ensure => present
+	}
 	# class { 'activemq':
 	# }
 }
